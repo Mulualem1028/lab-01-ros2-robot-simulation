@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Action server that rotates the robot on the spot to a desired angle.
+"""
+Action server that rotates the robot on the spot to a desired angle.
 
 Serves /rotate (my_robot_interfaces/action/Rotate).
 Uses wheel odometry (/odom) yaw integration to track angular displacement.
@@ -25,7 +26,7 @@ def yaw_from_quaternion(q):
 
 
 def angle_difference(target, current):
-    """target - current, wrapped to [-pi, pi] to handle angle wrapping cleanly."""
+    """Compute target - current, wrapped to [-pi, pi] to handle angle wrapping cleanly."""
     return math.atan2(math.sin(target - current), math.cos(target - current))
 
 
@@ -33,6 +34,7 @@ class RotateServer(Node):
     """Action server that rotates the robot to a given angle."""
 
     def __init__(self):
+        """Initialize rotate_server node and register action server."""
         super().__init__("rotate_server")
 
         self.declare_parameter("turn_speed", 0.5)  # rad/s
@@ -77,7 +79,9 @@ class RotateServer(Node):
         target_angle = goal_handle.request.angle
         turn_speed = float(self.get_parameter("turn_speed").value)
 
-        self.get_logger().info(f"Executing rotate goal: {target_angle:.3f} rad at {turn_speed:.2f} rad/s")
+        self.get_logger().info(
+            f"Executing rotate goal: {target_angle:.3f} rad at {turn_speed:.2f} rad/s"
+        )
 
         last_yaw = self.yaw
         total_turned = 0.0
@@ -122,11 +126,14 @@ class RotateServer(Node):
         self.cmd_vel_pub.publish(Twist())
         goal_handle.succeed()
         result.turned = total_turned
-        self.get_logger().info(f"Rotate completed: turned {total_turned:.3f} rad (target was {target_angle:.3f} rad)")
+        self.get_logger().info(
+            f"Rotate completed: turned {total_turned:.3f} rad (target was {target_angle:.3f} rad)"
+        )
         return result
 
 
 def main(args=None):
+    """Run rotate_server node."""
     rclpy.init(args=args)
     node = RotateServer()
     try:

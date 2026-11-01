@@ -1,4 +1,5 @@
-"""Launch diffdrive_bot simulation and run square driving action client and rotate server.
+"""
+Launch diffdrive_bot simulation and run square driving action client and rotate server.
 
 Includes control.launch.py from diffdrive_bot, starts rotate_server and square_driver.
 """
@@ -15,13 +16,15 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 
 def generate_launch_description():
+    """Generate launch description for square driving routine."""
     diffdrive_bot_share = get_package_share_directory("diffdrive_bot")
 
     side_length = ParameterValue(LaunchConfiguration("side_length"), value_type=float)
 
-    # Include diffdrive_bot's control.launch.py (which includes Gazebo, bridge, RViz and default nodes)
+    # Include diffdrive_bot's control.launch.py (Gazebo, bridge, RViz, and default nodes)
+    control_launch_path = os.path.join(diffdrive_bot_share, "launch", "control.launch.py")
     control_launch = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(diffdrive_bot_share, "launch", "control.launch.py")),
+        PythonLaunchDescriptionSource(control_launch_path),
     )
 
     # Rotate action server

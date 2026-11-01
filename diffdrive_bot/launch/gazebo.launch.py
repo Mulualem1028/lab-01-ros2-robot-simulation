@@ -15,9 +15,10 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, RegisterEventHandler, Shutdown, TimerAction
+from launch.actions import DeclareLaunchArgument, ExecuteProcess, RegisterEventHandler, Shutdown, TimerAction
+from launch.conditions import UnlessCondition
 from launch.event_handlers import OnProcessExit
-from launch.substitutions import Command
+from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
@@ -27,6 +28,8 @@ SPAWN_DELAY_S = 2.0
 
 def generate_launch_description():
     pkg_share = get_package_share_directory("diffdrive_bot")
+
+    headless = LaunchConfiguration("headless")
 
     robot_description = ParameterValue(
         Command(["xacro ", os.path.join(pkg_share, "urdf", "diffdrive_bot.urdf.xacro")]),
@@ -47,6 +50,7 @@ def generate_launch_description():
         name="gazebo_gui",
         output="screen",
         on_exit=Shutdown(),
+        condition=UnlessCondition(headless),
     )
 
     robot_state_publisher = Node(
@@ -76,9 +80,11 @@ def generate_launch_description():
         arguments=["-d", os.path.join(pkg_share, "rviz", "diffdrive_bot.rviz"), "-f", "odom"],
         parameters=[{"use_sim_time": True}],
         output="screen",
+        condition=UnlessCondition(headless),
     )
 
     return LaunchDescription([
+        DeclareLaunchArgument("headless", default_value="false", description="Run simulation headless without GUI"),
         gazebo_server,
         robot_state_publisher,
         TimerAction(period=SPAWN_DELAY_S, actions=[spawn]),

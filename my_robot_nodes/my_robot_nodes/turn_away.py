@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Node that steers the robot away from obstacles using lidar-derived obstacle info.
+"""
+Node that steers the robot away from obstacles using lidar-derived obstacle info.
 
 Subscribes to /obstacle (lab_interfaces/msg/ObstacleInfo) and publishes to
 /cmd_vel (geometry_msgs/msg/Twist) and /robot_status (my_robot_interfaces/msg/RobotStatus).
@@ -22,12 +23,13 @@ class TurnAway(Node):
     """Reacts to detected obstacles by turning away or driving forward."""
 
     def __init__(self):
+        """Initialize turn_away node and declare parameters and interfaces."""
         super().__init__("turn_away")
 
         # Declare parameters with default values
-        self.declare_parameter("forward_speed", 0.2)  # m/s
-        self.declare_parameter("turn_speed", 0.5)     # rad/s
-        self.declare_parameter("max_turn_speed", 1.5) # rad/s
+        self.declare_parameter("forward_speed", 0.2)   # m/s
+        self.declare_parameter("turn_speed", 0.5)      # rad/s
+        self.declare_parameter("max_turn_speed", 1.5)  # rad/s
 
         # Node starts disabled as required by Step 5
         self.enabled = False
@@ -46,7 +48,7 @@ class TurnAway(Node):
         self.get_logger().info("turn_away node initialized (currently disabled)")
 
     def on_obstacle(self, msg: ObstacleInfo):
-        """Callback executed on each incoming ObstacleInfo message."""
+        """Process incoming ObstacleInfo messages and command velocities."""
         status = RobotStatus()
         status.obstacle_distance = float(msg.distance)
 
@@ -92,7 +94,7 @@ class TurnAway(Node):
         return response
 
     def on_set_turn_speed(self, request, response):
-        """Service to set the turn speed within allowable bounds."""
+        """Set the turn speed within allowable bounds."""
         max_turn_speed = float(self.get_parameter("max_turn_speed").value)
         if request.turn_speed <= 0.0 or request.turn_speed > max_turn_speed:
             response.success = False
@@ -114,6 +116,7 @@ class TurnAway(Node):
 
 
 def main(args=None):
+    """Run turn_away node."""
     rclpy.init(args=args)
     node = TurnAway()
     try:

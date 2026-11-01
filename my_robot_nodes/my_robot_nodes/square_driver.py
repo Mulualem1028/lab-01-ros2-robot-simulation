@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Action client that drives the robot around a square of a given side length.
+"""
+Action client that drives the robot around a square of a given side length.
 
 Sends 4 sequential pairs of actions:
 1. /drive_distance (lab_interfaces/action/DriveDistance) for side_length
@@ -7,7 +8,6 @@ Sends 4 sequential pairs of actions:
 """
 
 import math
-import sys
 import time
 
 import rclpy
@@ -24,6 +24,7 @@ class SquareDriver(Node):
     """Coordinates driving a square trajectory using action servers."""
 
     def __init__(self):
+        """Initialize square_driver node and action clients."""
         super().__init__("square_driver")
 
         self.declare_parameter("side_length", 0.5)  # m
@@ -42,7 +43,9 @@ class SquareDriver(Node):
             goal_handle = send_future.result()
 
             if not goal_handle.accepted:
-                self.get_logger().warn(f"DriveDistance goal rejected (attempt {attempt + 1}/{max_retries}). Retrying in 1s...")
+                self.get_logger().warn(
+                    f"DriveDistance rejected (attempt {attempt + 1}/{max_retries}). Retrying..."
+                )
                 time.sleep(1.0)
                 continue
 
@@ -51,7 +54,9 @@ class SquareDriver(Node):
             wrapped_result = result_future.result()
 
             if wrapped_result.status == GoalStatus.STATUS_SUCCEEDED:
-                self.get_logger().info(f"Drive succeeded: travelled {wrapped_result.result.travelled:.2f} m")
+                self.get_logger().info(
+                    f"Drive succeeded: travelled {wrapped_result.result.travelled:.2f} m"
+                )
                 return True
             else:
                 self.get_logger().error(f"Drive ended with status: {wrapped_result.status}")
@@ -69,7 +74,9 @@ class SquareDriver(Node):
             goal_handle = send_future.result()
 
             if not goal_handle.accepted:
-                self.get_logger().warn(f"Rotate goal rejected (attempt {attempt + 1}/{max_retries}). Retrying in 1s...")
+                self.get_logger().warn(
+                    f"Rotate rejected (attempt {attempt + 1}/{max_retries}). Retrying in 1s..."
+                )
                 time.sleep(1.0)
                 continue
 
@@ -78,7 +85,9 @@ class SquareDriver(Node):
             wrapped_result = result_future.result()
 
             if wrapped_result.status == GoalStatus.STATUS_SUCCEEDED:
-                self.get_logger().info(f"Rotate succeeded: turned {wrapped_result.result.turned:.2f} rad")
+                self.get_logger().info(
+                    f"Rotate succeeded: turned {wrapped_result.result.turned:.2f} rad"
+                )
                 return True
             else:
                 self.get_logger().error(f"Rotate ended with status: {wrapped_result.status}")
@@ -90,7 +99,9 @@ class SquareDriver(Node):
         side_length = float(self.get_parameter("side_length").value)
         quarter_turn = math.pi / 2.0  # 1.5708 rad (left turn)
 
-        self.get_logger().info(f"Starting square drive routine with side_length={side_length:.2f} m")
+        self.get_logger().info(
+            f"Starting square drive routine with side_length={side_length:.2f} m"
+        )
         self.get_logger().info("Waiting for action servers (/drive_distance and /rotate)...")
 
         if not self.drive_client.wait_for_server(timeout_sec=30.0):
@@ -106,19 +117,28 @@ class SquareDriver(Node):
         for side in range(1, 5):
             self.get_logger().info(f">>> Side {side}/4: Driving forward {side_length:.2f} m <<<")
             if not self.drive_distance_sync(side_length):
-                self.get_logger().error(f"Failed while driving forward on side {side}/4. Aborting square.")
+                self.get_logger().error(
+                    f"Failed while driving forward on side {side}/4. Aborting square."
+                )
                 return False
 
-            self.get_logger().info(f">>> Side {side}/4: Turning quarter turn left ({quarter_turn:.3f} rad) <<<")
+            self.get_logger().info(
+                f">>> Side {side}/4: Turning quarter turn left ({quarter_turn:.3f} rad) <<<"
+            )
             if not self.rotate_sync(quarter_turn):
-                self.get_logger().error(f"Failed while rotating on side {side}/4. Aborting square.")
+                self.get_logger().error(
+                    f"Failed while rotating on side {side}/4. Aborting square."
+                )
                 return False
 
-        self.get_logger().info("All 4 sides completed successfully! Robot back at starting pose.")
+        self.get_logger().info(
+            "All 4 sides completed successfully! Robot back at starting pose."
+        )
         return True
 
 
 def main(args=None):
+    """Run square_driver node."""
     rclpy.init(args=args)
     node = SquareDriver()
     try:

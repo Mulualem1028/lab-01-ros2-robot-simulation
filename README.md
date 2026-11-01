@@ -86,16 +86,20 @@ source install/setup.bash
 2. **Verify Gazebo Simulation, Sensor Streams & RViz:**
    ```bash
    ros2 launch diffdrive_bot gazebo.launch.py
+   # Or in headless mode (higher simulation real-time factor):
+   # ros2 launch diffdrive_bot gazebo.launch.py headless:=true
    ```
    In RViz:
    * Add an **Image** display listening to `/depth_camera/image`.
    * Add a **PointCloud2** display listening to `/depth_camera/points`.
-   In a second terminal, verify the IMU stream:
+   In a second terminal, verify the sensor streams in simulation time:
    ```bash
-   ros2 topic hz /imu
+   # Use -s / --use-sim-time to measure frequency in simulation time:
+   ros2 topic hz -s /imu
+   ros2 topic hz -s /depth_camera/image
    ros2 topic echo /imu --once
    ```
-   *Expected result:* IMU publishes at ~50 Hz, with `linear_acceleration.z` $\approx 9.8\text{ m/s}^2$ while stationary.
+   *Expected result:* In simulation time (`-s`), the IMU publishes at ~50 Hz and the depth camera publishes at ~10 Hz, with `linear_acceleration.z` $\approx 9.8\text{ m/s}^2$ while stationary. (Note: Measuring without `-s` yields wall-clock arrival rate $f_{\text{wall}} = f_{\text{sim}} \times \text{RTF}$. On systems where RTF is ~0.06, wall rate is ~2.9 Hz for IMU and ~0.56 Hz for depth camera).
 
 ---
 

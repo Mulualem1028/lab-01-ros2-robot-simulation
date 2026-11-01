@@ -121,7 +121,7 @@ In a third terminal (sourced as before), you can inspect what the robot publishe
 ```bash
 ros2 topic list                  # every topic in the table below should be there
 ros2 topic echo /odom --once     # where the robot thinks it is
-ros2 topic hz /scan              # should be about 10 Hz
+ros2 topic hz -s /scan           # should be about 10 Hz in simulation time
 ros2 run tf2_tools view_frames   # writes frames.pdf showing the TF tree
 ros2 run tf2_ros tf2_echo odom base_link   # the live transform between two frames
 ```

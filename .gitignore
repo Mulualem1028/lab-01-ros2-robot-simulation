@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+
+# ROS 2 & colcon artifacts
+build/
+install/
+log/
+.colcon/

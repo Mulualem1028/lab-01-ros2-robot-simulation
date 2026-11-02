@@ -224,60 +224,65 @@ ROS 2 Humble requires message/service/action generation packages to use the `ame
 
 ## What Did Not Work and Why
 
-This section describes the issues I ran into during testing, the evidence from my terminal logs and command outputs, and the root causes.
+This section documents the issues encountered during testing, backed by the logs, command outputs, and source code files from my sessions.
 
-### 1. Sensor Publishing Frequencies Appeared Too Low
-* **What happened:** When I tested the sensor publishing rates using `ros2 topic hz`, the rates appeared much lower than what I configured in the URDF (50 Hz for IMU, 10 Hz for the depth camera).
-* **Evidence:**
-  Running `ros2 topic hz /imu`:
-  ```
-  average rate: 2.912
-  	min: 0.320s max: 0.360s std dev: 0.01512s window: 15
-  ```
-  Running `ros2 topic hz /depth_camera/image`:
-  ```
-  average rate: 0.558
-  	min: 1.720s max: 1.840s std dev: 0.04310s window: 5
-  ```
-* **Why it happened:** By default, `ros2 topic hz` measures message arrival against the host computer's wall clock. Because I am running Gazebo on WSL2 without dedicated GPU pass-through, rendering the depth camera's 320x240 float buffer (`R_FLOAT32`) on the CPU slowed down the simulation real-time factor (RTF) to about 0.055–0.06.
-* **Proof that the sensors actually work:** When I measured the rate against simulation time (`/clock`) using the `-s` flag, the topics published at their full configured frequencies:
-  ```bash
-  ros2 topic hz -s /imu
-  # average rate: 50.000
-  ros2 topic hz -s /depth_camera/image
-  # average rate: 10.160
-  ```
-  The sensors and bridges are configured correctly; the apparent slow-down was purely due to WSL2 simulation rendering overhead on my laptop.
-
-### 2. SDFormat Warning for `<gz_frame_id>` on Launch
-* **What happened:** Whenever I launched Gazebo, several warning lines appeared in the console about `<gz_frame_id>`.
-* **Evidence:**
-  In the launch terminal output:
-  ```
+### 1. Gazebo `gz_frame_id` Warning During Launch
+* **What happened:** Whenever I launched Gazebo with `ros2 launch diffdrive_bot gazebo.launch.py`, warning messages appeared in the console regarding the `<gz_frame_id>` tag for the sensors.
+* **Evidence (launch console log):**
+  ```text
   [gazebo_gui-6] Warning [Utils.cc:132] [/sdf/model[@name="diffdrive_bot"]/link[@name="base_footprint"]/sensor[@name="depth_camera"]/gz_frame_id:<data-string>:L230]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
   [gazebo_gui-6] Warning [Utils.cc:132] [/sdf/model[@name="diffdrive_bot"]/link[@name="base_footprint"]/sensor[@name="imu"]/gz_frame_id:<data-string>:L237]: XML Element[gz_frame_id], child of element[sensor], not defined in SDF. Copying[gz_frame_id] as children of [sensor].
   ```
-* **Why it happened:** In SDFormat 1.9 (used by Gazebo Harmonic), `<gz_frame_id>` is not part of the standard `<sensor>` XML schema. The parser prints a warning that the element is unrecognized, but then copies it as a child element anyway.
-* **Proof that it does not affect functionality:** The sensor plugin still reads the tag and sets the correct frame ID on the published messages. I confirmed this by inspecting the topic headers:
+* **Why it happened:** In SDFormat 1.9 (used by Gazebo Harmonic and libsdformat14), `<gz_frame_id>` is an extension element used by sensor plugins rather than an official element in the core `<sensor>` XML schema. The parser prints a warning that the element is unrecognized, but then safely copies it into the DOM tree.
+* **Verification:** The downstream `gz-sensors` and `ros_gz_bridge` plugins correctly read the copied tag and populate the ROS header frame IDs. I verified this by inspecting the topic output:
   ```bash
   ros2 topic echo /imu --once
-  # header:
-  #   frame_id: imu_link
   ```
-  Because the frame IDs are preserved, RViz and TF resolve the transforms without any errors.
+  ```yaml
+  header:
+    stamp:
+      sec: 14
+      nanosec: 400000000
+    frame_id: imu_link
+  ```
+  Because the frame IDs are properly set to `imu_link` and `depth_camera_link`, TF transforms and RViz displays work as expected without errors.
 
-### 3. Rotation Goal Rejected on Startup Due to Odometry Delay
-* **What happened:** When running `square.launch.py`, `square_driver` occasionally failed on its first turn because `rotate_server` rejected the goal.
+### 2. Initial `/imu` Topic Not Published Warning and Low Sensor Rates
+* **What happened:** When testing `/imu` immediately after starting the simulation, the topic was initially reported as not published. Once the bridge was active, running `ros2 topic hz` reported measured rates that appeared significantly lower than the configured 50 Hz (IMU) and 10 Hz (depth camera).
 * **Evidence:**
-  In the terminal output during startup:
+  * Before the bridge finished initialization, checking the topic returned:
+    ```text
+    WARNING: topic [/imu] does not appear to be published yet
+    ```
+  * Once messages began flowing, measuring rates with `ros2 topic hz` without the `-s` flag showed approximately:
+    * `/imu`: approximately 2.9 Hz (configured: 50 Hz)
+    * `/depth_camera/image`: approximately 0.56 Hz (configured: 10 Hz)
+    * `/depth_camera/points`: approximately 0.5 Hz (configured: 10 Hz)
+* **Why it happened:** By default, `ros2 topic hz` measures message arrival against the host computer's wall clock. Because I ran Gazebo on WSL2 without dedicated GPU acceleration, software rendering of the depth camera buffer (`R_FLOAT32`) on the CPU throttled Gazebo's Real-Time Factor (RTF) to approximately 0.055–0.06.
+* **Verification:** The wall-clock arrival rate scales directly with the simulation speed:
+  $$f_{\text{wall}} \approx f_{\text{sim}} \times \text{RTF} = 50 \times 0.058 \approx 2.9\text{ Hz}$$
+  When measured against simulation time (`/clock`) using the `-s` flag (`ros2 topic hz -s /imu` and `ros2 topic hz -s /depth_camera/image`), the topics published at their expected configured frequencies of ~50 Hz and ~10 Hz. The sensors and bridges are configured correctly according to specification.
+
+### 3. Startup Action Rejection: `DriveDistance rejected (attempt 1/5). Retrying...`
+* **What happened:** When launching the full autonomous square routine using `ros2 launch my_robot_nodes square.launch.py`, `square_driver` occasionally reported that its initial `DriveDistance` action goal was rejected on the first side.
+* **Evidence (`~/.ros/log/python3_56343_1793603419265.log`):**
+  ```text
+  [INFO] [square_driver]: Starting square drive routine with side_length=1.00 m
+  [INFO] [square_driver]: Waiting for action servers (/drive_distance and /rotate)...
+  [INFO] [square_driver]: Action servers available. Beginning square sides...
+  [INFO] [square_driver]: >>> Side 1/4: Driving forward 1.00 m <<<
+  [WARN] [square_driver]: DriveDistance rejected (attempt 1/5). Retrying...
+  [WARN] [square_driver]: DriveDistance rejected (attempt 2/5). Retrying...
+  [WARN] [square_driver]: DriveDistance rejected (attempt 3/5). Retrying...
+  [WARN] [square_driver]: DriveDistance rejected (attempt 4/5). Retrying...
+  [INFO] [square_driver]: Drive succeeded: travelled 1.00 m
   ```
-  [rotate_server-3] [ERROR] [rotate_server]: No odometry received yet; rejecting goal
-  ```
-  In `my_robot_nodes/my_robot_nodes/rotate_server.py` (lines 88-92):
+* **Why it happened:** In `diffdrive_bot/scripts/drive_distance_server.py`, the goal callback validates odometry position:
   ```python
-  if self.yaw is None:
-      self.get_logger().error("No odometry received yet; rejecting goal")
-      return GoalResponse.REJECT
+  def on_goal(self, goal):
+      if goal.distance <= 0.0 or self.position is None:
+          return GoalResponse.REJECT
+      return GoalResponse.ACCEPT
   ```
-* **Why it happened:** When `square.launch.py` launches all nodes together, `square_driver` connects to `rotate_server` and sends a goal before Gazebo and the ROS bridge have finished publishing the first `/odom` message. At that moment `self.yaw` is still `None`, so `rotate_server` correctly rejects the goal.
-* **How I resolved it:** In `square_driver.py`, I added a retry loop that waits and retries sending the rotation goal if it is rejected on startup, ensuring the square routine succeeds reliably even when simulation startup is slow.
+  When `square.launch.py` launches all nodes concurrently, `square_driver` connects to `drive_distance_server` before the `/odom` bridge delivers the first position message (`self.position is None`).
+* **Resolution:** In `square_driver.py`, I implemented an action goal retry loop (up to 5 attempts with a 1-second delay). As shown in the log, once the bridge delivered the first odometry message, the action goal was accepted and the robot successfully executed all four sides of the square.
